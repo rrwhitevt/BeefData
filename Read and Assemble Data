@@ -1,0 +1,132 @@
+#R Code to Clean and Analyze Mercadante Beef Herd Data
+#Updated 8/30/2018
+#With Questions Contact:
+#	Robin White
+#	rrwhite@vt.edu
+#	509-701-9290
+
+
+
+#___________________________________________Open Packages_______________________________________________
+library(googlesheets)
+library(ggplot2)
+library(reshape2)
+library(plyr)
+
+#______________________________________Specify Custom Functions____________________________________________
+rbind.all.columns <- function(x, y) {
+    x.diff <- setdiff(colnames(x), colnames(y))
+    y.diff <- setdiff(colnames(y), colnames(x))
+    x[, c(as.character(y.diff))] <- NA
+    y[, c(as.character(x.diff))] <- NA
+    return(rbind(x, y))
+}
+
+#______________________________________Set Working Directory____________________________________________
+setwd("C:/Users/rrwhite/Documents/Manuscripts/Mercadante Data 2018")
+
+#______________________________________Read in the Data____________________________________________
+mysheets <- gs_ls()
+#sheets <- c("F2010", "S2010", "F2011", "S2011", "F2012", "S2012", "F2013", "S2013", "F2014", "S2014", "F2015", "S2015", "F2016", "S2016", "F2017", "S2017")
+sheets <- c("F2010", "S2010", "F2011", "F2012", "S2012", "F2013", "S2013", "F2014", "S2014", "F2015", "S2015", "F2016", "S2016", "S2017")
+for(i in sheets) {
+gsd <- gs_title(i)
+for(j in gs_ws_ls(gsd)) {
+d <- data.frame(gs_read(gsd,ws=j))
+d$Location <- j
+d$Time <- i
+if(j==gs_ws_ls(gsd)[1]) { o <- d } else {o <- rbind.all.columns(o, d)}
+Sys.sleep(10)
+}
+if(i==sheets[1]) {p <- o} else {p <- rbind.all.columns(p, o)}
+Sys.sleep(15)
+}
+
+
+backup <- p
+write.csv(backup, "backup.csv")
+p <- read.csv("backup.csv")
+
+#______________________________________Consolidate Columns____________________________________________
+#~~~~~~~~~~~~~~~Dam ID~~~~~~~~~~~~~~~~~
+p$Dam.ID <- ifelse(is.na(p$Dam.ID)==TRUE, p$Dam.Id, p$Dam.ID)
+p <- subset(p, is.na(p$Dam.ID)==FALSE)
+p$Heifer.ID <- ifelse(is.na(p$Heifer.Id)==FALSE, p$Heifer.Id, 
+                        ifelse(is.na(p$Heifer..ID)==FALSE, p$Heifer..ID, p$Heifer.ID))
+#~~~~~~~~~~~~~~~Location~~~~~~~~~~~~~~~~~
+p$Location <- ifelse(is.na(p$Locaion)==FALSE, p$Locaion, 
+                    ifelse(is.na(p$LOCATION)==FALSE, p$LOCATION, p$Location))
+#~~~~~~~~~~~~~~~Dam Age~~~~~~~~~~~~~~~~~
+p$Dam.Age <- ifelse(is.na(p$Dam.Age..calc)==FALSE, p$Dam.Age..calc., 
+                    ifelse(is.na(p$Dam.s..Age)==FALSE, p$Dam.s..Age, p$Dam.Age))
+#~~~~~~~~~~~~~~~Dam Birth Date~~~~~~~~~~~~~~~~~
+p$Dam.Birth.Date <- ifelse(is.na(p$Dam.Birth.Date)==TRUE, p$Dam.Brith.Date, p$Dam.Birth.Date)
+#~~~~~~~~~~~~~~~Heat Detection~~~~~~~~~~~~~~~~~
+p$Heat.Date.Time <- ifelse(is.na(p$Heat.Spot)==FALSE, p$Heat.Spot, 
+                          ifelse(is.na(p$Heat)==FALSE, p$Heat, p$Heat.Date.Time))
+#~~~~~~~~~~~~~~~Weaning Weight~~~~~~~~~~~~~~~~~
+p$Weaning.Wt <- as.numeric(p$Weaning.Wt)
+p$WW <- ifelse(is.na(p$Wean.Weight)==FALSE, p$Wean.Weight, 
+                ifelse(is.na(p$Wean.Wgt.)==FALSE, p$Wean.Wgt.,
+                        ifelse(is.na(p$Weaning.Weight)==FALSE, p$Weaning.Weight,
+                                    ifelse(is.na(p$Weaning.Wt)==FALSE, p$Weaning.Wt,p$Weanning.Weight))))
+#~~~~~~~~~~~~~~~Calving Date~~~~~~~~~~~~~~~~~
+p$Proj.Calving.Date <- ifelse(is.na(p$Proj..AI.Birth.Date)==FALSE, p$Proj..AI.Birth.Date,
+                              ifelse(is.na(p$Proj..Birth.Date)==FALSE, p$Proj..Birth.Date, 
+                                    ifelse(is.na(p$Proj.Calving.Date..calc.)==FALSE, p$Proj.Calving.Date..calc.,
+                                           ifelse(is.na(p$Projected..AI.Calving.Date)==FALSE, p$Projected..AI.Calving.Date,
+                                                  ifelse(is.na(p$Projected.Calving.Date)==FALSE, p$Projected.Calving.Date, p$Proj.Calving.Date)))))
+p$Calving.Date <- ifelse(is.na(p$Birth.Date)==FALSE, p$Birth.Date, 
+                        ifelse(is.na(p$Birth.date)==FALSE, p$Birth.date, 
+                               ifelse(is.na(p$Birth.Date..calf.)==FALSE, p$Birth.Date..calf., 
+                                      ifelse(is.na(p$Calf.Birth.Date)==FALSE, p$Calf.Birth.Date, p$Calving.Date))))
+#~~~~~~~~~~~~~~~Calf Birth Weight~~~~~~~~~~~~~~~~~
+p$Calf.Birth.Weight <- as.numeric(p$Calf.Birth.Weight)
+p$Calf.Birth.Weight <- ifelse(is.na(p$Calf.Birth.Wt)==FALSE, p$Calf.Birth.Wt, 
+                              ifelse(is.na(p$Birth.Wight)==FALSE, p$Birth.Wight,
+                                     ifelse(is.na(p$Birth.Wt)==FALSE, p$Birth.Wt, p$Calf.Birth.Weight)))
+
+#______________________________________Create Consolidated Data Subset____________________________________________
+keep <- c("Year", "Location", "Season", "Category", "Heifer.ID", "Dam.ID", "Dam.Age", "Dam.Birth.Date", "Heat.Date.Time", "WW", "Proj.Calving.Date", "Calving.Date", "Calf.Birth.Weight")
+p1 <- p[keep]
+
+#~~~~~~~~~~~~~~~Location and Time~~~~~~~~~~~~~~~~~
+p1$Loc <- ifelse(p1$Location %in% c("JamesRiverJC", "James River", "JamesRiverDW", "JRA", "James River @ Beaumont", "JRA ", "JRB-Late", "Beamont-JRB", "James River A", "JR-MeatPlant", "JR - B", " James River A", "James River B", "JR at Augusta", "JRA", "JRB", "JR A", "JR B"), "James River", 
+                 ifelse(p1$Location %in% c("Pamunkey", "Pamunkey Heifers", "Pamukey Heifers"), "Pamunkey", 
+                        ifelse(p1$Location %in% c("Sky Meadows", "Whitepost-Skymedows", "Coffeewood - Skymedows", "Coffeewood SM", "Coffeewood - late", "Whitepost - late", "Coffeewood", "SkyMeadows"), "Sky Meadows", 
+                               ifelse(p1$Location %in% c("A.M.", "AM"), "AM", 
+                                      ifelse(p1$Location %in% c("Southampton", "Southampton Sorted", "Southampton Heifers"), "Southampton", 
+                                             ifelse(p1$Location %in% c("Marion", "Marion Heifers"), "Marion",
+                                             ifelse(p1$Location %in% c("Bland", "Bland Heifers"), "Bland", p1$Location)))))))
+p1$Season <- ifelse(p1$Season=="Sring", "Spring", p1$Season)
+
+#~~~~~~~~~~~~~~~Correct Entry Formatting Errors in Dam Birth Date~~~~~~~~~~~~~~~~~
+p1$Dam.Birth.Date <- ifelse(nchar(p1$Dam.Birth.Date)<3, NA, p1$Dam.Birth.Date)
+p1$DB_Month <- substring(p1$Dam.Birth.Date, 1,2)
+p1$DB_MonthC <- ifelse(p1$DB_Month %in% c("1/", "2/", "3/", "4/", "5/", "6/", "7/", "8/", "9/"), paste("0", substring(p1$DB_Month,1,1),"/", sep=""), p1$DB_Month)
+p1$Dam.Birth.Date <- paste(p1$DB_MonthC, substring(p1$Dam.Birth.Date, 3, nchar(p1$Dam.Birth.Date)), sep="")
+p1$DB_Day <- substring(p1$Dam.Birth.Date, 4,5)
+p1$DB_DayC <- ifelse(p1$DB_Day %in% c("1/", "2/", "3/", "4/", "5/", "6/", "7/", "8/", "9/"), paste("0", substring(p1$DB_Day,1,1), sep=""), p1$DB_Day)
+p1$DB_MonthC <- substring(p1$DB_MonthC,1,2)
+p1$Dam.Birth.Date <- paste(p1$DB_MonthC, "/", p1$DB_DayC, "/", substring(p1$Dam.Birth.Date, nchar(p1$Dam.Birth.Date)-1, nchar(p1$Dam.Birth.Date)), sep="")
+p1$Dam.Birth.Date <- as.numeric(as.Date(p1$Dam.Birth.Date, format="%d/%m/%y"))
+
+#~~~~~~~~~~~~~~~Correct Entry Formatting Errors in Calving Date~~~~~~~~~~~~~~~~~
+p1$Calving.Date <- ifelse(nchar(p1$Calving.Date)<3, NA, p1$Calving.Date)
+p1$CD_Month <- substring(p1$Calving.Date, 1,2)
+p1$CD_MonthC <- ifelse(p1$CD_Month %in% c("1/", "2/", "3/", "4/", "5/", "6/", "7/", "8/", "9/"), paste("0", substring(p1$CD_Month,1,1), sep=""), 
+                    ifelse(p1$CD_Month %in% c("10", "09", "11", "12", "08", "02", "03", "01", "04"), paste(p1$CD_Month, sep=""),
+                           ifelse(p1$CD_Month %in% c("op", "NA","13","14","20","xx","sp", "la", "51", "2-","DO", "No", "Op", "XX", "La", "AD", "Ab", "so", "cu", "??", "OP", "Di", "CA", "DN", "di", "ca", "Ca", "BO", "dr"), NA, 
+                               ifelse(p1$CD_Month=="9\\", "09", p1$CD_Month))))
+p1$Calving.Date <- paste(p1$CD_MonthC, substring(p1$Calving.Date, 3, nchar(p1$Calving.Date)), sep="")
+p1$CD_Day <- substring(p1$Calving.Date, 4,5)
+p1$CD_DayC <- ifelse(p1$CD_Day %in% c("0/","1/", "2/", "3/", "4/", "5/", "6/", "7/", "8/", "9/"), paste("0", substring(p1$CD_Day,1,1), sep=""), 
+                      ifelse(p1$CD_Day %in% c("0\\", "1\\", "2\\", "3\\", "4\\", "5\\", "6\\", "7\\", "8\\", "9\\"), paste("0", substring(p1$CD_Day,1,1), sep=""), 
+                             ifelse(p1$CD_Day %in% c("N","n","A","in","n?","e ","","n/","n "," C","Au","9=","xx","Se","PT","rt","le","??","d","0-","No","n"," n","X","VE","f","d ","N " , " c" ), NA, 
+                                    ifelse(p1$CD_Day %in% c("/2", "/1"),substring(p1$Calving.Date, 5,6), 
+                                         ifelse(p1$CD_Day=="\\1", "01", p1$CD_Day)))))
+p1$Calving.Date <- paste(p1$CD_MonthC, "/", p1$CD_DayC, "/", substring(p1$Calving.Date, nchar(p1$Calving.Date)-1, nchar(p1$Calving.Date)), sep="")
+p1$Calving.Date <- as.numeric(as.Date(p1$Calving.Date, format="%d/%m/%y"))
+
+#______________________________________Write Cleaned File____________________________________________
+write.csv(p1, "cleaned.csv")
